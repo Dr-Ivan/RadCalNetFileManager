@@ -1,3 +1,8 @@
+# Ignore non-source code folders
+radcalnet_data/
+.idea/
+.vscode/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
