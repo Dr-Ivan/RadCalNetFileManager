@@ -1,6 +1,7 @@
 from XMLparser import parse_resurs_p_metadata
 from RadCalNetFileDownloader import download_radcalnet_files
 from CheckDataAvailability import analyze_radcalnet_file
+from FileParser import read_radcalnet_by_date
 
 import os
 import datetime
@@ -96,7 +97,34 @@ if __name__ == "__main__":
                 else:
                     print(f"Данные RadCalNet за дату {date_only} НЕДОСТУПНЫ")
 
-                # далее будет интеграция функции, которая парсит нужный файл в словарь
+
+                if any("ПОЛНОСТЬЮ" in s or "ЧАСТИЧНО" in s for s in statuses):
+
+                    print("\nЗапуск парсинга RadCalNet файлов...\n")
+
+                    try:
+                        parsed_data = read_radcalnet_by_date(
+                            date = metadata['datetime'].date(),
+                            folder = OUTPUT_DIR,
+                            target_utc_time = metadata['datetime'].time(),
+                            site = SITE
+                        )
+
+                        print("Парсинг успешно выполнен.\n")
+
+                        print("Полученные ключи:")
+                        print(parsed_data.keys())
+
+                        print("\nUTC выбранного измерения:")
+                        print(parsed_data["UTC"])
+
+                        print("\n\nВсе полученные данные: ")
+                        print(parsed_data)
+                        
+                    except Exception as e:
+                        print("Ошибка при парсинге RadCalNet:")
+                        print(e)
+
     else:
         print(f"Файл {xml_file} не найден")
 
