@@ -7,6 +7,9 @@ import os
 import datetime
 import re
 
+def msk_to_utc(dt):
+    return dt - datetime.timedelta(hours=3)
+
 def files_for_date(folder, site, date_str):
     """
     Возвращает список файлов RadCalNet за конкретную дату.
@@ -42,17 +45,25 @@ if __name__ == "__main__":
     if os.path.exists(xml_file):
         metadata = parse_resurs_p_metadata(xml_file)
         if metadata:
+
+            #  К UTC 
+            utc_datetime = msk_to_utc(metadata['datetime'])
+            utc_date_only = utc_datetime.strftime("%Y-%m-%d")
+
             print(f"Дата съемки: {metadata['date']}")
             print(f"Время съемки: {metadata['time']}")
-            print(f"Полная дата-время: {metadata['datetime']}")
             print(f"Поиск на сайте по: {metadata['date_only']}")
+
+            print(f"Полная дата-время (MSK): {metadata['datetime']}")
+            print(f"Полная дата-время (UTC): {utc_datetime}")
+            print(f"Поиск на сайте по (UTC): {utc_date_only}")
 
             # Параметры скачивания
             USERNAME = "ivanderevyanko05@gmail.com"
             PASSWORD = "1DPSi16e5o"
             OUTPUT_DIR = out_path # Директория для сохранения
-            START_DATE = metadata['date_only']       # Начальная дата
-            STOP_DATE = metadata['date_only']        # Конечная дата  
+            START_DATE = utc_date_only       # Начальная дата
+            STOP_DATE = utc_date_only        # Конечная дата  
             FORMAT = "ascii"                # Формат: 'ascii' или 'nc'
             SITE = "LCFR"                   # Сайт: La Crau
 
@@ -74,7 +85,7 @@ if __name__ == "__main__":
 
             print("Проверка доступности данных в скачанных файлах RadCalNet.\n")
 
-            date_only = metadata['date_only']
+            date_only = utc_date_only
             files = files_for_date(OUTPUT_DIR, SITE, date_only)
 
             if not files:
@@ -104,9 +115,9 @@ if __name__ == "__main__":
 
                     try:
                         parsed_data = read_radcalnet_by_date(
-                            date = metadata['datetime'].date(),
+                            date = utc_datetime.date(),
                             folder = OUTPUT_DIR,
-                            target_utc_time = metadata['datetime'].time(),
+                            target_utc_time = utc_datetime.time(),
                             site = SITE
                         )
 
