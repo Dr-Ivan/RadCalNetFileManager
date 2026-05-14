@@ -40,15 +40,48 @@ def parse_aviris_datetime(filename):
     )
 
 
+def find_uniform_bright_patch(img, band=420, window=20, step=20):
+    """
+    Автоматически ищет однородный яркий участок.
+    
+    band - спектральный канал (например 420nm)
+    window - размер окна
+    step - шаг сканирования
+    """
+
+    band_data = img.read_band(band)
+
+    best_score = None
+    best_pos = (0, 0)
+
+    rows, cols = band_data.shape
+
+    for r in range(0, rows - window, step):
+        for c in range(0, cols - window, step):
+
+            patch = band_data[r:r+window, c:c+window]
+
+            if np.any(patch <= 0):
+                continue
+
+            mean = np.mean(patch)
+            std = np.std(patch)
+
+            # метрика
+            score = std / mean - 0.1 * mean
+
+            if best_score is None or score < best_score:
+                best_score = score
+                best_pos = (r + window // 2, c + window // 2)
+
+    return best_pos
+
 img = open_image(os.path.join(AVIRIS_FOLDER, AVIRIS_FILE))
 
 
-# точка полигона
-row, col = 3260, 495
-
-print(f"Выбрана точка: row={row}, col={col}")
-
-
+# точка полигона (автоматический поиск)
+row, col = find_uniform_bright_patch(img)
+print(f"Автоматически выбрана точка: row={row}, col={col}")
 
 print("Размер данных:", img.shape)
 
@@ -139,4 +172,3 @@ plt.legend()
 plt.grid()
 
 plt.show()
-
