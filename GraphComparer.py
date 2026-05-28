@@ -21,10 +21,6 @@ AVIRIS_FOLDER = "D:/Загрузки/ang20200712t223738/ang20200712t223738_rdn_v
 AVIRIS_FILE = "ang20200712t223738_rdn_v2y1_img.hdr"
 
 
-
-
-
-
 def parse_aviris_datetime(filename):
     pattern = r"ang(\d{8})t(\d{6})"
     match = re.search(pattern, filename)
@@ -80,7 +76,6 @@ def find_uniform_bright_patch(
     return best_pos
 
 
-# AVIRIS
 img = open_image(
     os.path.join(
         AVIRIS_FOLDER,
@@ -90,9 +85,14 @@ img = open_image(
 
 print("Размер данных:", img.shape)
 
-# поиск точки
+# Поиск точки
 row, col = find_uniform_bright_patch(img)
-print(f"Автоматически выбрана точка: row={row}, col={col}")
+
+print(
+    f"Автоматически выбрана точка:"
+    f" row={row}, col={col}"
+)
+
 
 # RGB preview
 rgb = img.read_bands((30, 20, 10))
@@ -105,29 +105,40 @@ plt.title("AVIRIS RGB preview")
 plt.show()
 
 
+# Спектр AVIRIS
 patch = img[row-5:row+5, col-5:col+5, :]
 av_spectrum = patch.mean(axis=(0, 1))
-
 av_wl = np.array(
     img.metadata["wavelength"],
     dtype=float
 )
 
-# Удаление мусорных значений
-valid_av = (
-    np.isfinite(av_spectrum)
-    & (av_spectrum > 0)
+# FWHM каналов AVIRIS
+av_fwhm = np.array(
+    img.metadata["fwhm"],
+    dtype=float
 )
+
+# Удаление мусора
+valid_av = (np.isfinite(av_spectrum) & (av_spectrum > 0))
 
 av_wl = av_wl[valid_av]
 av_spectrum = av_spectrum[valid_av]
+av_fwhm = av_fwhm[valid_av]
 
+print("\nAVIRIS:")
+print("min =", np.min(av_spectrum))
+print("max =", np.max(av_spectrum))
+
+
+# Время AVIRIS
 aviris_dt = parse_aviris_datetime(AVIRIS_FILE)
 DATE = aviris_dt.strftime("%Y-%m-%d")
 target_time = aviris_dt.time()
 print("\nДата:", DATE)
 print("Время AVIRIS:", target_time)
 
+# Скачивание RADCALNET
 if not os.path.exists(OUTPUT_DIR):
     os.makedirs(OUTPUT_DIR)
 
@@ -141,6 +152,7 @@ download_radcalnet_files(
     site=SITE
 )
 
+# Чтение RADCALNET
 parsed_data = read_radcalnet_by_date(
     date=datetime.datetime.strptime(
         DATE,
@@ -151,9 +163,7 @@ parsed_data = read_radcalnet_by_date(
     site=SITE
 )
 
-print("Использованное время RadCalNet:",
-      parsed_data["UTC"])
-
+print("Использованное время RadCalNet:", parsed_data["UTC"])
 rc_dict = parsed_data["Reflectance"]
 
 rc_wl = np.array(
@@ -166,12 +176,12 @@ rc_spec = np.array(
     dtype=float
 )
 
-# сортировка
+# Сортировка
 idx = np.argsort(rc_wl)
 rc_wl = rc_wl[idx]
 rc_spec = rc_spec[idx]
 
-# удаление fill value
+# Удаление fill values
 valid_rc = (
     np.isfinite(rc_spec)
     & (rc_spec > 0)
@@ -181,35 +191,86 @@ valid_rc = (
 rc_wl = rc_wl[valid_rc]
 rc_spec = rc_spec[valid_rc]
 
-# Приведение единиц
+print("\nRadCalNet:")
+print("min =", np.min(rc_spec))
+print("max =", np.max(rc_spec))
+
+
 rc_spec = rc_spec * 1000.0
 
-av_interp = np.interp(
-    rc_wl,
+print("\nRadCalNet после перевода единиц:")
+
+print("min =", np.min(rc_spec))
+print("max =", np.max(rc_spec))
+
+
+
+# Приведение шкалы длин волн - интерполяция RadCalNet в каналы AVIRIS
+rc_resampled = np.interp(
     av_wl,
-    av_spectrum
+    rc_wl,
+    rc_spec
 )
 
+print("\nResampled RadCalNet:")
+print("min =", np.min(rc_resampled))
+print("max =", np.max(rc_resampled))
+
+
+# Калибровочный коэффициент gain(lambda) = RadCalNet / AVIRIS
+valid_gain = (av_spectrum > 0)
+gain = np.zeros_like(av_spectrum)
+gain[valid_gain] = (rc_resampled[valid_gain] / av_spectrum[valid_gain])
+
+print("\nGain:")
+print("min =", np.min(gain))
+print("max =", np.max(gain))
+
+# Калибровка AVIRIS
+calibrated_aviris = (av_spectrum * gain)
+
+print("\nCalibrated AVIRIS:")
+print("min =", np.min(calibrated_aviris))
+print("max =", np.max(calibrated_aviris))
+
+
+# График Gain
+plt.figure(figsize=(12, 6))
+plt.plot(
+    av_wl,
+    gain,
+    linewidth=2
+)
+
+plt.xlabel("Wavelength (nm)")
+plt.ylabel("Gain")
+
+plt.title(f"Calibration Gain ({SITE}, {DATE})")
+plt.grid()
+plt.show()
+
+
+# График калиброванного спектра
 plt.figure(figsize=(12, 6))
 
 plt.plot(
-    rc_wl,
-    rc_spec,
+    av_wl,
+    rc_resampled,
     label="RadCalNet",
     linewidth=2
 )
 
 plt.plot(
-    rc_wl,
-    av_interp,
-    label="AVIRIS",
+    av_wl,
+    calibrated_aviris,
+    label="AVIRIS calibrated",
     linestyle="--",
     linewidth=2
 )
 
 plt.xlabel("Wavelength (nm)")
 plt.ylabel("Radiance")
-plt.title(f"AVIRIS vs RadCalNet Radiance ({SITE}, {DATE})")
+plt.title(f"Calibrated AVIRIS vs RadCalNet ({SITE}, {DATE})")
 
 plt.legend()
 plt.grid()
