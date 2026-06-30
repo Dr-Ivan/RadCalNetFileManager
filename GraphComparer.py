@@ -9,7 +9,6 @@ from RadCalNetFileDownloader import download_radcalnet_files
 from FileParser import read_radcalnet_by_date
 
 
-
 # ПАРАМЕТРЫ
 USERNAME = "ivanderevyanko05@gmail.com"
 PASSWORD = "1DPSi16e5o"
@@ -82,17 +81,14 @@ img = open_image(
         AVIRIS_FILE
     )
 )
-
 print("Размер данных:", img.shape)
 
 # Поиск точки
 row, col = find_uniform_bright_patch(img)
-
 print(
     f"Автоматически выбрана точка:"
     f" row={row}, col={col}"
 )
-
 
 # RGB preview
 rgb = img.read_bands((30, 20, 10))
@@ -103,7 +99,6 @@ plt.imshow(rgb)
 plt.scatter(col, row, c="red", s=80)
 plt.title("AVIRIS RGB preview")
 plt.show()
-
 
 # Спектр AVIRIS
 patch = img[row-5:row+5, col-5:col+5, :]
@@ -125,6 +120,7 @@ valid_av = (np.isfinite(av_spectrum) & (av_spectrum > 0))
 av_wl = av_wl[valid_av]
 av_spectrum = av_spectrum[valid_av]
 av_fwhm = av_fwhm[valid_av]
+
 
 print("\nAVIRIS:")
 print("min =", np.min(av_spectrum))
@@ -203,6 +199,18 @@ print("\nRadCalNet после перевода единиц:")
 print("min =", np.min(rc_spec))
 print("max =", np.max(rc_spec))
 
+# Только общий спектральный диапазон AVIRIS и RadCalNet
+valid_range = (
+    (av_wl >= rc_wl.min()) &
+    (av_wl <= rc_wl.max())
+)
+
+av_wl = av_wl[valid_range]
+av_spectrum = av_spectrum[valid_range]
+av_fwhm = av_fwhm[valid_range]
+
+print("\nОбщий спектральный диапазон:")
+print(f"{av_wl.min():.1f} - {av_wl.max():.1f} нм")
 
 
 # Приведение шкалы длин волн - интерполяция RadCalNet в каналы AVIRIS
@@ -257,15 +265,27 @@ plt.plot(
     av_wl,
     rc_resampled,
     label="RadCalNet",
-    linewidth=2
+    color="red",
+    linewidth=2,
+    linestyle="-"
 )
 
 plt.plot(
     av_wl,
     calibrated_aviris,
-    label="AVIRIS calibrated",
-    linestyle="--",
-    linewidth=2
+    label="AVIRIS after calibration",
+    color="black",
+    linewidth=2,
+    linestyle="--"
+)
+
+
+plt.plot(
+    av_wl,
+    av_spectrum,
+    label="AVIRIS before calibration",
+    linewidth=2,
+    linestyle="-"
 )
 
 plt.xlabel("Wavelength (nm)")
